@@ -8,8 +8,9 @@ MODEL_BASE=$ROOT/weight/phi-2/
 VLM_NAME=Bunny-lora-phi-2-siglip
 CAT1=all # 使用的模型是从Med-VQA19 all finetune得到的
 CAT2=cat1  # 使用的测试数据的分区
-FINETUNE_MODEL=$ROOT/weight/Bunny-lora-phi-2-Med-$CAT1/  # finetune model by Med-VQA19 all/C1/C2/C3
-
+# FINETUNE_MODEL=$ROOT/weight/Bunny-lora-phi-2-Med-$CAT1/  # finetune model by Med-VQA19 all/C1/C2/C3
+# FINETUNE_MODEL=/defaultShare/archive/zhuzixuan/temp_weight_bak/Bunny-lora-phi-2-Med-$CAT1 # finetune model by Med-VQA19 all/C1/C2/C3
+FINETUNE_MODEL=$ROOT/weight/Bunny-lora-phi-2-siglip
 
 # 原始的--model-path参数取值为： $ROOT/weight/$VLM_NAME \
 

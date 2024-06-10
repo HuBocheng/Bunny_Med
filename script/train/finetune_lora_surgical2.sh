@@ -3,8 +3,7 @@
 ROOT=/zhuzixuan/Bunny
 MODEL_TYPE=phi-2
 
-CAT=all
-OUTPUT_DIR=Bunny-lora-$MODEL_TYPE-Med-$CAT
+OUTPUT_DIR=Bunny-lora-$MODEL_TYPE-EndoVis
 
 
 mkdir -p ./checkpoints-$MODEL_TYPE/$OUTPUT_DIR
@@ -15,9 +14,8 @@ deepspeed bunny/train/train.py \
     --model_name_or_path $ROOT/weight/phi-2/ \
     --model_type $MODEL_TYPE \
     --version bunny \
-    --data_floder $BUNNY_DATASET/Med-VQA19 \
-    --image_folder train/images \
-    --category $CAT \
+    --data_floder $BUNNY_DATASET/EndoVis-18 \
+    --image_folder left_frames \
     --dataType train \
     --vision_tower $ROOT/weight/siglip/ \
     --pretrain_mm_mlp_adapter $ROOT/weight/bunny-pretrain-phi-2-siglip/mm_projector.bin \
@@ -26,10 +24,10 @@ deepspeed bunny/train/train.py \
     --group_by_modality_length False \
     --bf16 True \
     --output_dir ./checkpoints-$MODEL_TYPE/$OUTPUT_DIR \
-    --num_train_epochs 1 \
-    --per_device_train_batch_size 8 \
+    --num_train_epochs 2 \
+    --per_device_train_batch_size 4 \
     --per_device_eval_batch_size 4 \
-    --gradient_accumulation_steps 2 \
+    --gradient_accumulation_steps 4 \
     --evaluation_strategy "no" \
     --save_strategy "steps" \
     --save_steps 500 \
@@ -48,7 +46,7 @@ deepspeed bunny/train/train.py \
 
 
 # merge Lora weight
-mkdir -p $ROOT/weight/Bunny-$MODEL_TYPE-siglip-Med-$CAT
+python -c 'print("merging lora weight......")'
 python script/merge_lora_weights.py \
 	--model-path /zhuzixuan/Bunny/checkpoints-$MODEL_TYPE/$OUTPUT_DIR \
 	--model-base /zhuzixuan/Bunny/weight/phi-2 \

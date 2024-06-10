@@ -10,12 +10,16 @@ from bunny.constants import IMAGE_TOKEN_INDEX, DEFAULT_IMAGE_TOKEN
 from bunny.conversation import conv_templates, SeparatorStyle
 from bunny.model.builder import load_pretrained_model
 from bunny.util.utils import disable_torch_init
-from bunny.util.mm_utils import tokenizer_image_token, process_images, load_image_from_base64, load_image_from_path, \
+from bunny.util.mm_utils import tokenizer_image_token, process_images,load_image_from_path, \
     get_model_name_from_path
 
 import math
 from torch.utils.data import Dataset, DataLoader
 from sklearn.metrics import recall_score, f1_score
+from sklearn.preprocessing import LabelEncoder
+
+from bunny.util.data_utils import EndoVis18VQAClassification
+
 
 
 
@@ -41,6 +45,45 @@ class MedVQAClassification(Dataset):
         self.image_processor = image_processor
         self.model = model
         self.cat = cat
+
+
+
+
+        self.labels1=['venogram', 'pet - positron emission', 'be - barium enema', 'no', 'an - angiogram',
+         'mr - other pulse seq.', 'mr - dwi diffusion weighted', 'sbft - small bowel', 
+         'mr - adc map (app diff coeff)', 't1', 'bas - barium swallow', 'xr - plain film',
+        'yes', 'mr - fiesta', 'ct noncontrast', 'mr - flair w/gd', 'mra - mr angiography/venography',
+        'contrast', 'flair', 'mr - t1w - noncontrast', 'nm - nuclear medicine', 'us-d - doppler ultrasound',
+        'noncontrast', 'ct - myelogram', 'ct with iv contrast', 'us - ultrasound', 'mammograph', 
+        'ct with gi and iv contrast', 'gi', 'mr - t1w w/gadolinium', 'mr - t2 weighted', 
+        'ct with gi contrast', 'mr - flair', 'ct w/contrast (iv)', 'mr t2* gradient,gre,mpgr,swan,swi',
+        'iv', 'mr - stir', 'mr - pdw proton density', 'ct - gi & iv contrast', 'ugi - upper gi', 
+        'mr - t1w w/gd (fat suppressed)', 'cta - ct angiography', 'gi and iv', 't2']
+        
+        self.labels2=['oblique', 'coronal', 'axial', 'frontal', 'pa', 'lateral', 'sagittal', 'mammo - cc',
+                       '3d reconstruction', 'decubitus', 'mammo - mag cc', 'mammo - mlo', 'ap',
+                         'transverse', 'longitudinal']
+
+        self.labels3=['lung, mediastinum, pleura', 'spine and contents', 'genitourinary', 'breast',
+                       'skull and contents', 'face, sinuses, and neck', 'gastrointestinal',
+                         'heart and great vessels', 'musculoskeletal', 'vascular and lymphatic']
+
+        lables_test=['no', 'oblique', 'face, sinuses, and neck#skull and contents', 't2', 'coronal',
+                      'transverse', 'breast', 'gastrointestinal', 'us-d - doppler ultrasound', 'yes',
+                        'ct w/contrast (iv)', 'mr - adc map (app diff coeff)', 'mr - flair', 'ct noncontrast',
+                        'contrast', 'sbft - small bowel', 't1', 'axial', 'sagittal', 'face, sinuses, and neck',
+                        'heart and great vessels', 'ugi - upper gi', 'mr - t2 weighted', 'us - ultrasound',
+                        'mr - t1w w/gadolinium', 'skull and contents', 'mammo - mlo', 'ap', 'mammograph',
+                        'gastrointestinal#genitourinary#spine and contents#musculoskeletal',
+                        'gi and iv', 'ct with iv contrast', 'iv', 'lung, mediastinum, pleura',
+                        'gastrointestinal#lung, mediastinum, pleura', 'spine and contents',
+                        'lateral', 'vascular and lymphatic', 'musculoskeletal', 'pa', 'mammo - cc',
+                        'heart and great vessels#lung, mediastinum, pleura', 'lung, mediastinum, pleura#spine and contents', 
+                        'heart and great vessels#lung, mediastinum, pleura#spine and contents', 'ct with gi and iv contrast',
+                        'longitudinal', 'skull and contents#spine and contents', '3d reconstruction', 'frontal',
+                        'noncontrast', 'genitourinary', 'xr - plain film', 'flair', 'cta - ct angiography',
+                            'ct - gi & iv contrast', 'an - angiogram']
+
         if cat == 'cat1':
             if dataType == 'val':
                 self.file_name = 'QAPairsByCategory/C1_Modality_val.txt'
@@ -50,19 +93,7 @@ class MedVQAClassification(Dataset):
                 self.file_name = 'answers.txt'
             else:
                 raise ValueError('Invalid dataType')  # 抛出错误
-            self.labels = ['cta - ct angiography', 'no', 'us - ultrasound', 'xr - plain film', 'noncontrast', 'yes',
-                           't2', 'ct w/contrast (iv)', 'mr - flair', 'mammograph', 'ct with iv contrast',
-                           'gi and iv', 't1', 'mr - t2 weighted', 'mr - t1w w/gadolinium', 'contrast', 'iv',
-                           'an - angiogram', 'mra - mr angiography/venography', 'nm - nuclear medicine',
-                           'mr - dwi diffusion weighted',
-                           'ct - gi & iv contrast', 'ct noncontrast', 'mr - other pulse seq.',
-                           'ct with gi and iv contrast', 'flair', 'mr - t1w w/gd (fat suppressed)', 'ugi - upper gi',
-                           'mr - adc map (app diff coeff)',
-                           'bas - barium swallow', 'pet - positron emission', 'mr - pdw proton density',
-                           'mr - t1w - noncontrast', 'be - barium enema', 'us-d - doppler ultrasound', 'mr - stir',
-                           'mr - flair w/gd',
-                           'ct with gi contrast', 'venogram', 'mr t2* gradient,gre,mpgr,swan,swi', 'mr - fiesta',
-                           'ct - myelogram', 'gi', 'sbft - small bowel', 'pet-ct fusion']
+            self.labels = self.labels1
         elif cat == 'cat2':
             if dataType == 'val':
                 self.file_name = 'QAPairsByCategory/C2_Plane_val.txt'
@@ -72,9 +103,7 @@ class MedVQAClassification(Dataset):
                 self.file_name = 'answers.txt'
             else:
                 raise ValueError('Invalid dataType')
-            self.labels = ['axial', 'longitudinal', 'coronal', 'lateral', 'ap', 'sagittal', 'mammo - mlo', 'pa',
-                           'mammo - cc', 'transverse', 'mammo - mag cc', 'frontal', 'oblique', '3d reconstruction',
-                           'decubitus', 'mammo - xcc']
+            self.labels = self.labels2
         elif cat == 'cat3':
             if dataType == 'val':
                 self.file_name = 'QAPairsByCategory/C3_Organ_val.txt'
@@ -84,36 +113,14 @@ class MedVQAClassification(Dataset):
                 self.file_name = 'answers.txt'
             else:
                 raise ValueError('Invalid dataType')
-            self.labels = ['lung, mediastinum, pleura', 'skull and contents', 'genitourinary', 'spine and contents',
-                           'musculoskeletal', 'heart and great vessels', 'vascular and lymphatic', 'gastrointestinal',
-                           'face, sinuses, and neck', 'breast']
+            self.labels = self.labels3
         elif cat == 'all':
             if dataType == 'test':
                 self.file_name = 'answers.txt'
+                self.labels = lables_test
             else:
                 raise ValueError('Invalid dataType')
-            self.labels = ['cta - ct angiography', 'no', 'us - ultrasound', 'xr - plain film', 'noncontrast', 'yes',
-                           't2', 'ct w/contrast (iv)', 'mr - flair', 'mammograph', 'ct with iv contrast',
-                           'gi and iv', 't1', 'mr - t2 weighted', 'mr - t1w w/gadolinium', 'contrast', 'iv',
-                           'an - angiogram', 'mra - mr angiography/venography', 'nm - nuclear medicine',
-                           'mr - dwi diffusion weighted',
-                           'ct - gi & iv contrast', 'ct noncontrast', 'mr - other pulse seq.',
-                           'ct with gi and iv contrast', 'flair', 'mr - t1w w/gd (fat suppressed)', 'ugi - upper gi',
-                           'mr - adc map (app diff coeff)',
-                           'bas - barium swallow', 'pet - positron emission', 'mr - pdw proton density',
-                           'mr - t1w - noncontrast', 'be - barium enema', 'us-d - doppler ultrasound', 'mr - stir',
-                           'mr - flair w/gd',
-                           'ct with gi contrast', 'venogram', 'mr t2* gradient,gre,mpgr,swan,swi', 'mr - fiesta',
-                           'ct - myelogram', 'gi', 'sbft - small bowel', 'pet-ct fusion',
-
-                           'axial', 'longitudinal', 'coronal', 'lateral', 'ap', 'sagittal', 'mammo - mlo', 'pa',
-                           'mammo - cc', 'transverse', 'mammo - mag cc', 'frontal', 'oblique', '3d reconstruction',
-                           'decubitus', 'mammo - xcc',
-
-                           'lung, mediastinum, pleura', 'skull and contents', 'genitourinary', 'spine and contents',
-                           'musculoskeletal', 'heart and great vessels', 'vascular and lymphatic', 'gastrointestinal',
-                           'face, sinuses, and neck', 'breast'
-                           ]
+            
         self.patch_size = patch_size
 
         self.vqas = []
@@ -142,7 +149,9 @@ class MedVQAClassification(Dataset):
         # question and answer
         # print("self.vqas[idx][0].split('|')",self.vqas[idx][0].split('|'))
         question = self.vqas[idx][0].split('|')[2]
-        answer = self.vqas[idx][0].split('|')[3]
+        answer = str(self.vqas[idx][0].split('|')[3])
+        # answer=self.labels.index(answer)
+
 
         # print("1:/n", self.vqas[idx][0].split('|')[0], "2:/n", image_tensor, "3:/n", question, "4:/n", answer)
 
@@ -187,6 +196,7 @@ def eval_model(args):
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
     ans_file = open(output_file, "w")
 
+    
     dataset = MedVQAClassification(datafloder=args.data_floder, imgfloder=args.image_floder,
                                    image_processor=image_processor, model=model, cat=args.category,
                                    dataType=args.dataType)
@@ -204,6 +214,7 @@ def eval_model(args):
     for i,(idx_image, image_tensor, question, answer) in enumerate(tqdm(dataloader, total=len(dataset))):
 
         question = " ".join(question)
+        # answer_inx=answer
         answer = " ".join(answer)
 
         hint = question + '\nYou have the following {} options to choose from:\n'.format(len(options)) + options_str
@@ -249,13 +260,19 @@ def eval_model(args):
             if outputs.endswith(stop_str):
                 outputs = outputs[:-len(stop_str)]
             outputs = outputs.strip()
-            prediction.append(outputs.lower())
-            rightAnswer.append(answer.lower())
+            if('#' in answer): # 多择处理Acc，跳过prediction和rightAnswer列表添加
+                answer_list=answer.split('#')
+                if(outputs.lower() in answer_list):
+                    count = count + 1
+                    rightAnswer_idx.append(i+1)
+            else: # 单选处理
+                prediction.append(outputs.lower())
+                rightAnswer.append(answer.lower())
 
-            # ans_id = shortuuid.uuid()
-            if (outputs.lower() == answer.lower()):
-                count = count + 1
-                rightAnswer_idx.append(i+1)
+                # ans_id = shortuuid.uuid()
+                if (outputs.lower() == answer.lower()):
+                    count = count + 1
+                    rightAnswer_idx.append(i+1)
             ans_file.write(json.dumps({"question_id": idx_image,
                                        "prompt": qs,
                                        "outputs": outputs,
@@ -269,30 +286,51 @@ def eval_model(args):
             # options = options[1:] + options[:1]
             # cur_option_char = cur_option_char[1:] + cur_option_char[:1]
 
-    ans_file.close()
-    print(f"rightAnswer_idx:{rightAnswer_idx}")
-    print("ACC:{}/{}   {:.2f}".format(count, len(dataset), count / len(dataset)))
+    
+    print(f"正确回答的样本编号：:{rightAnswer_idx}")
+    print("ACC:{}/{}   {:.4f}".format(count, len(dataset), count / len(dataset)))
 
-    rightAnswer = list(map(int, rightAnswer))
-    prediction = list(map(int, prediction))
+    # Transform answers and predictions to numerical labels
+    label_encoder = LabelEncoder()
+    all_possible_answers=[]
+    for item in options:
+        all_possible_answers.append(item.lower())
+    assert len(all_possible_answers) == len(set(all_possible_answers)), "There are duplicate answers in the options."
+    label_encoder.fit(all_possible_answers)
+
+    rightAnswer = label_encoder.transform(rightAnswer)
+    prediction = label_encoder.transform(prediction)
     assert len(rightAnswer) == len(prediction), "The lengths of rightAnswer and prediction must be the same."
 
 
     # 计算Recall（macro平均）
     recall_macro = recall_score(rightAnswer, prediction, average='macro')
-    print(f"Recall (Macro):{recall_macro:.2f}")
+    print(f"Recall (Macro):{recall_macro:.4f}")
 
     # 计算Recall（micro平均）
     recall_micro = recall_score(rightAnswer, prediction, average='micro')
-    print(f"Recall (Micro):{recall_micro:.2f}")
+    print(f"Recall (Micro):{recall_micro:.4f}")
 
     # 计算F1 Score（macro平均）
     f1_macro = f1_score(rightAnswer, prediction, average='macro')
-    print(f"F1 Score (Macro):{f1_macro:.2f}")
+    print(f"F1 Score (Macro):{f1_macro:.4f}")
 
     # 计算F1 Score（micro平均）
     f1_micro = f1_score(rightAnswer, prediction, average='micro')
-    print(f"F1 Score (Micro):{f1_micro:.2f}")
+    print(f"F1 Score (Micro):{f1_micro:.4f}")
+    
+    summary = {
+        "total_samples": len(dataset),
+        "correct_predictions": count,
+        "recall_macro": recall_macro,
+        "recall_micro": recall_micro,
+        "f1_macro": f1_macro,
+        "f1_micro": f1_micro
+    }
+    ans_file.write(json.dumps(summary) + "\n")
+    
+    ans_file.close()
+
 
 
 if __name__ == "__main__":
